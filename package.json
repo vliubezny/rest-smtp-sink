@@ -27,6 +27,7 @@
     "knex": "^0.7.3",
     "lodash": "^3.3.1",
     "mailparser": "^0.4.9",
+    "mithril": "^0.1.30",
     "simplesmtp": "^0.3.35",
     "sqlite3": "^3.0.5"
   },

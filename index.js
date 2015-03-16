@@ -134,6 +134,8 @@ RestSmtpSink.prototype.createWebServer = function () {
 
 	app.use(compress());
 
+	app.use('/static', express.static(__dirname + '/static'));
+
 	app.get('/', function(req, res){
 
 		res.set('Content-Type', 'text/html');
