@@ -173,12 +173,12 @@ RestSmtpSink.prototype.createWebServer = function() {
 
 		res.write('rest-smtp-sink' + '<br><br>SMTP server listening on port ' + _.escape(self.smtpport) + '; HTTP listening on port ' + _.escape(self.httpport) + '<br>Note: This page dynamically updates as email arrives.' + '<br><br>API' + '<br><a href="/api/email">All Emails ( /api/email )</a>' + '<br><a href="/api/email">All Email, streamed, may load faster ( /api/email/stream )</a>' + '<br><a href="/api/email/latest">Last received Email</a> ( /api/email/latest )');
 
-		res.write('<table><thead><tr><td>ID<td>Del<td>Purge<td>To<td>From<td>Subject<td>Date</thead><tbody>');
+		res.write('<table><thead><tr><td>ID<td>Del<td>Purge<td>To<td>From<td>Subject<td>Date<td>HTML</thead><tbody>');
 
 		res.flush(); // make sure the above data gets sent, so it doesn't look like the page is hanging.
 
 		function render_item(item) {
-			return '<tr><td><a href="/api/email/' + _.escape(item.id) + '">' + _.escape(item.id) + '</a>' + '<td><a href="/api/email/delete/' + _.escape(item.id) + '"> Del </a>' + '<td><a href="/api/email/purge/' + _.escape(item.id) + '"> Purge </a>' + '<td>' + _.escape(item.to) + '<td>' + _.escape(item.from) + '<td>' + _.escape(item.subject) + '<td>' + _.escape(new Date(item.created_at))
+			return '<tr><td><a href="/api/email/' + _.escape(item.id) + '">' + _.escape(item.id) + '</a>' + '<td><a href="/api/email/delete/' + _.escape(item.id) + '"> Del </a>' + '<td><a href="/api/email/purge/' + _.escape(item.id) + '"> Purge </a>' + '<td>' + _.escape(item.to) + '<td>' + _.escape(item.from) + '<td>' + _.escape(item.subject) + '<td>' + _.escape(new Date(item.created_at)) + '<td><a href="/api/email/' + _.escape(item.id) + '/html">HTML</a>'
 		}
 
 		self.db.select('*').from('emails')
