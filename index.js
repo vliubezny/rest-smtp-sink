@@ -230,6 +230,20 @@ RestSmtpSink.prototype.createWebServer = function() {
 		.catch(next)
 	});
 
+  app.get('/api/email/:id/html', function(req, res, next) {
+    self.db.select('html').from('emails')
+      .where('id', '=', req.params.id)
+      .then(function(resp) {
+        if (resp.length < 1) {
+          res.status(404).send('Not found')
+        } else {
+          res.contentType('text/html');
+          res.send(JSON.parse(resp[0].html));
+        }
+      })
+      .catch(next)
+  });
+
 	app.get('/api/email/delete/:id', function(req, res, next) {
 		self.db.select('*').from('emails')
 		.where('id', '=', req.params.id)
