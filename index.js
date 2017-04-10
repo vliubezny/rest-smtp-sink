@@ -54,7 +54,7 @@ RestSmtpSink.prototype.createSchema = function() {
 		}
 	});
 
-	return self.db.schema.createTable('emails', function(table) {
+	return self.db.schema.createTableIfNotExists('emails', function(table) {
 		table.increments();
 		table.timestamps();
 		['html', 'text', 'headers', 'subject', 'messageId', 'priority', 'from', 'to']
@@ -62,15 +62,18 @@ RestSmtpSink.prototype.createSchema = function() {
 			table.json(id)
 		});
 	})
-	.catch(function(err) {
-		if (~err.message.indexOf('SQLITE_ERROR: table "emails" already exists')) {
-			self.emit('info', err.message);
-		} else {
-			self.emit('error', err);
-			throw err;
-		}
-	})
-}
+  .createTableIfNotExists('attachments', function(table) {
+    table.increments();
+    table.integer('emailId').unsigned().references('emails.id');
+    table.string('fileName');
+    table.string('contentType');
+    table.binary('data');
+  })
+  .catch(function(err) {
+    self.emit('error', err);
+    throw err;
+  })
+};
 
 RestSmtpSink.prototype.createSmtpSever = function() {
 	var self = this;
@@ -86,6 +89,7 @@ RestSmtpSink.prototype.createSmtpSever = function() {
 
 		connection.mailparser = new MailParser();
 		connection.mailparser.on("end", function(mail_object) {
+
 			self.db('emails')
 			.insert({
 				"created_at": new Date(),
@@ -100,6 +104,22 @@ RestSmtpSink.prototype.createSmtpSever = function() {
 				'to': JSON.stringify(connection.to)
 			})
 			.then(function(record) {
+        var rows = mail_object.attachments.map(function(attachment) {
+          console.log(attachment.fileName + ' ' + attachment.contentType + ' ' + attachment.contentDisposition);
+          return {
+            'emailId': record[0],
+            'fileName': JSON.stringify(attachment.fileName),
+            'contentType': JSON.stringify(attachment.contentType),
+            'data': attachment.content
+          };
+        });
+
+        self.db.batchInsert('attachments', rows)
+          .catch(function(err) {
+            self.emit('error', err);
+            throw err;
+          });
+
 				self.db('emails')
 				.select('*')
 				.where('id', '=', record[0]) // primary key from DB
@@ -224,7 +244,13 @@ RestSmtpSink.prototype.createWebServer = function() {
 			if (resp.length < 1) {
 				res.status(404).send('Not found')
 			} else {
-				res.json(self.deserialize(resp[0]));
+        var email = self.deserialize(resp[0]);
+        self.db.select('id', 'fileName', 'contentType').from('attachments')
+          .where('emailId', '=', req.params.id)
+          .then(function(resp) {
+            email.attachments = resp;
+            res.json(email);
+          });
 			}
 		})
 		.catch(next)
@@ -244,6 +270,22 @@ RestSmtpSink.prototype.createWebServer = function() {
       .catch(next)
   });
 
+  app.get('/api/attachment/:id/', function(req, res, next) {
+    self.db.select('*').from('attachments')
+      .where('id', '=', req.params.id)
+      .then(function(resp) {
+        if (resp.length < 1) {
+          res.status(404).send('Not found')
+        } else {
+          var attachment = resp[0];
+          res.contentType(attachment.contentType);
+          res.setHeader('Content-disposition', 'attachment;filename=' + attachment.fileName);
+          res.send(attachment.data);
+        }
+      })
+      .catch(next)
+  });
+
 	app.get('/api/email/delete/:id', function(req, res, next) {
 		self.db.select('*').from('emails')
 		.where('id', '=', req.params.id)
@@ -251,12 +293,17 @@ RestSmtpSink.prototype.createWebServer = function() {
 			if (resp.length < 1) {
 				res.status(404).send('Not found')
 			} else {
-				self.db('emails')
-				.where('id', '=', req.params.id)
-				.del()
-				.then(function () {
-					res.status(200).send('Removed');
-				})
+        self.db('attachments')
+        .where('emailId', '=', req.params.id)
+        .del()
+        .then(function() {
+          return self.db('emails')
+            .where('id', '=', req.params.id)
+            .del()
+            .then(function () {
+              res.status(200).send('Removed');
+            });
+        })
 				.catch(function (err) {
 					res.status(500).send(err);
 				})
@@ -272,15 +319,20 @@ RestSmtpSink.prototype.createWebServer = function() {
 			if (resp.length < 1) {
 				res.status(404).send('Not found')
 			} else {
-				self.db('emails')
-				.where('id', '<=', req.params.id)
-				.del()
-				.then(function () {
-					res.status(200).send('Purged records older than ' + req.params.id);
-				})
-				.catch(function (err) {
-					res.status(500).send(err);
-				})
+        self.db('attachments')
+        .where('emailId', '<=', req.params.id)
+        .del()
+        .then(function () {
+          return self.db('emails')
+            .where('id', '<=', req.params.id)
+            .del()
+            .then(function () {
+              res.status(200).send('Purged records older than ' + req.params.id);
+            });
+        })
+        .catch(function (err) {
+          res.status(500).send(err);
+        })
 			}
 		})
 		.catch(next)
