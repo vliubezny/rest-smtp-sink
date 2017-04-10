@@ -108,8 +108,8 @@ RestSmtpSink.prototype.createSmtpSever = function() {
           console.log(attachment.fileName + ' ' + attachment.contentType + ' ' + attachment.contentDisposition);
           return {
             'emailId': record[0],
-            'fileName': JSON.stringify(attachment.fileName),
-            'contentType': JSON.stringify(attachment.contentType),
+            'fileName': attachment.fileName,
+            'contentType': attachment.contentType,
             'data': attachment.content
           };
         });
